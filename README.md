@@ -1,4 +1,4 @@
-##License
+## License
 The software includes about 45 lines of the MIT licensed software 
     "Schrankensteuerung Zustandsautomat Schrankenbewegung"
             Copyright (c) 2025 Albert Messmer
