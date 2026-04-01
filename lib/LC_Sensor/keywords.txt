@@ -1,0 +1,6 @@
+LC_Sensor   KEYWORD1
+end KEYWORD2
+begin KEYWORD2
+read KEYWORD2
+activ KEYWORD2
+pins KEYWORD2
