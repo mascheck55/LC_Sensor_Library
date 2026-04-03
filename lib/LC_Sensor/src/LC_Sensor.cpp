@@ -11,11 +11,11 @@
   Arduino Sketch "Schrankensteuerung Zustandsautomat Schrankenbewegung"
   Beschreibung siehe www.coole-basteleien.de/schranke.html
   MIT (c) Copyright Autor: A. Messmer 2025 for 45lines - marked below
-  
+
   Substancial changed by A.Mascheck 19.01.2026, 24.03.2026, 01.04.2026
   MIT (c) Copyright A.Mascheck 2026 - see LICENSE file.
-  
-  
+
+
 */
 #include <Arduino.h>
 #include <LC_Sensor.h>
@@ -28,10 +28,9 @@
 #error "Unsupported board! Add ARDUINO_AVR_* check"
 #endif
 
-#define LC_SENSOR_CHANNELS 7 // A0-A6 für LC Sensoren
+#define LC_SENSOR_CHANNELS 6 // A0-A5 für LC Sensoren
 #define ADC_CHANNEL 7        // A7 für Potentiometer
 #define MAX_SENSORS 8        // total including ADC
-
 
 // define Const_8_channel 8               // for running over 8 pins
 #define SIGNAL_HOLD 180                 // time extension of detected occupancy in 1/400th of seconds
@@ -44,18 +43,19 @@ volatile uint8_t _comp_count;           // Counter incremented by comparator int
 volatile uint8_t _channel_count = 0;    // 0...7
 volatile boolean _workingAC = false;    // Flag for the Analog Comparator
 volatile boolean _workingAD = false;    // Flag for the Analog Digital Converter
-void ReadADC7();
-void SetAC();
-void InitialStroke(uint8_t _channel);
-void StoreChannel(uint8_t _channel);
-void StartTimer2_8x400Hz();
-
+void ReadADC7();                        // Read ADC7
+void SetAC();                           // Switch Analog Compare
+void InitialStroke(uint8_t _channel);   // initial Stroke
+void StoreChannel(uint8_t _channel);    // store the result of the counter
+void StartTimer2_8x400Hz();             // Timer for 3,2kHz
+#define TEN_TIMES_NOP asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n ");
 
 //==============================================================================================
 //==============================================================================================
 
 LC_Sensor::LC_Sensor(void)
-{}
+{
+}
 
 //==============================================================================================
 bool LC_Sensor::end(void)
@@ -105,7 +105,6 @@ bool LC_Sensor::activ(uint8_t A_pin)
 //==============================================================================================
 uint8_t LC_Sensor::pins() { return _nr_sensors; }
 
-
 //========================================private===============================================
 //==============================================================================================
 
@@ -131,13 +130,13 @@ ISR(TIMER2_COMPA_vect, ISR_NOBLOCK)
 {
   /*
    * die Kanäle 0 bis 7 werden nacheinander durchlaufen mit 400Hz
-   * nur 0 bis 6 sind für die LC Sensoren das Ergebnis steht in _result
+   * nur 0 bis 5 sind für die LC Sensoren das Ergebnis steht in _result
    * Wenn dieser größer 0 ist, dann ist der Sensor aktiv.
    * _channel 7 wird für die schnelle Auslesung des analogen Eingangs AD7 verwendet
    * dabei ergeben sich Werte von 0-255
    *
    * channels 0 to 7 are run through one after the other at 400Hz
-   * only 0 to 6 are for the LC sensors, the result is in _result
+   * only 0 to 5 are for the LC sensors, the result is in _result
    * If this is greater than 0, then the sensor is active.
    * _channel 7 is used for fast reading of analog input AD7
    * this results in values from 0-255
@@ -195,7 +194,7 @@ void ReadADC7()
 }
 //===============================================================================
 void SetAC()
-{//MIT licensed by Albert Messmer 2025
+{ // MIT licensed by Albert Messmer 2025
   bitSet(DIDR1, AIN1D);
   bitSet(DIDR1, AIN0D);   // input Puffer disable
   ACSR = 0x00;            // Analog Vergleich ServiceRegister zurückgesetzt
@@ -214,7 +213,7 @@ void SetAC()
 
 //===============================================================================
 void InitialStroke(uint8_t _channel)
-{ //MIT licensed by Albert Messmer 2025
+{ // MIT licensed by Albert Messmer 2025
   uint8_t bitmask;
   SetAC();
   _workingAC = true;
@@ -224,21 +223,23 @@ void InitialStroke(uint8_t _channel)
   /******** start measuring sequence ********/
   /* initial pull down pulse */
   cli();
-  DDRC |= bitmask; // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull down)
-  _comp_count = 0;
-  asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n"); // duration of pulse
-  DDRC &= ~bitmask;                                                                                                               // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
+  PORTC &= ~bitmask; // sets PC0...7, i.e. pin 14... to LOW
+  DDRC |= bitmask;   // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull down)
 
-  asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n"); // duration of pause
-  asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n"); // duration of pause
-  asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n");                                                       // duration of pause
-  PORTC |= bitmask;                                                                                                               // sets PC0...7, i.e. pin 14... to HIGH
-  DDRC |= bitmask;                                                                                                                // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull up)
-  asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n");                         // duration of pulse
-  DDRC &= ~bitmask;                                                                                                               // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
+  TEN_TIMES_NOP;
+  TEN_TIMES_NOP;    // 1.25 uS pulse duration
+  DDRC &= ~bitmask; // tristate                                                                                                             // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
+  TEN_TIMES_NOP;    // 0.625 uS pause
+  /* pull up pulse */
+  PORTC |= bitmask; // sets PC0...7, i.e. pin 14... to HIGH
+  DDRC |= bitmask;  // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull up)
+  TEN_TIMES_NOP;
+  TEN_TIMES_NOP;    // 1.25 uS counter pulse duration
+  DDRC &= ~bitmask; // sets PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)                                                                                                               // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
+  _comp_count = 0;
   sei();
-  PORTC &= ~bitmask; // sets PC0...6, i.e. pin 14... to LOW
-  /* end initial pull down pulse */
+
+  /* end initial stroke pulse */
   bitSet(ADCSRB, ACME); // AC on
   bitSet(ACSR, ACIE);   // Interrupt enabled
   bitSet(ACSR, ACI);    // delete possible comparator interrupt flag
