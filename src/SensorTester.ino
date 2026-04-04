@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "LC_Sensor.h"
 #define Sensors 7
-#define FirstSensor 0 //A0
 #define Threshold 36
 #define Repeats 5
 
