@@ -28,7 +28,7 @@
 #error "Unsupported board! Add ARDUINO_AVR_* check"
 #endif
 
-#define LC_SENSOR_CHANNELS 6 // A0-A5 für LC Sensoren
+#define LC_SENSOR_CHANNELS 7 // A0-A5 für LC Sensoren
 #define ADC_CHANNEL 7        // A7 für Potentiometer
 #define MAX_SENSORS 8        // total including ADC
 
@@ -48,8 +48,24 @@ void SetAC();                           // Switch Analog Compare
 void InitialStroke(uint8_t _channel);   // initial Stroke
 void StoreChannel(uint8_t _channel);    // store the result of the counter
 void StartTimer2_8x400Hz();             // Timer for 3,2kHz
-#define TEN_TIMES_NOP asm("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop\n ");
-
+#define FIVE_TIMES_NOP asm("nop\n nop\n nop\n nop\n nop\n ");
+#define TEN_TIMES_NOP FIVE_TIMES_NOP FIVE_TIMES_NOP
+#define TWENTY_TIMES_NOP TEN_TIMES_NOP TEN_TIMES_NOP
+struct ChannelConfig {
+  volatile uint8_t *port;
+  volatile uint8_t *ddr;
+  uint8_t bitmask;
+};
+const ChannelConfig channels[] PROGMEM = {
+    {&PORTC, &DDRC, (1 << 0)}, // Channel 0 = A0 = PC0
+    {&PORTC, &DDRC, (1 << 1)}, // Channel 1 = A1 = PC1
+    {&PORTC, &DDRC, (1 << 2)}, // Channel 2 = A2 = PC2
+    {&PORTC, &DDRC, (1 << 3)}, // Channel 3 = A3 = PC3
+    {&PORTC, &DDRC, (1 << 4)}, // Channel 4 = A4 = PC4
+    {&PORTC, &DDRC, (1 << 5)}, // Channel 5 = A5 = PC5
+    {&PORTD, &DDRD, (1 << 3)}, // Channel 6 = A6 = PD4
+    {&PORTD, &DDRD, (1 << 4)}, // Channel 7 = A7 = PD5
+};
 //==============================================================================================
 //==============================================================================================
 
@@ -194,7 +210,7 @@ void ReadADC7()
 }
 //===============================================================================
 void SetAC()
-{ // MIT licensed by Albert Messmer 2025
+{ 
   bitSet(DIDR1, AIN1D);
   bitSet(DIDR1, AIN0D);   // input Puffer disable
   ACSR = 0x00;            // Analog Vergleich ServiceRegister zurückgesetzt
@@ -214,36 +230,43 @@ void SetAC()
 //===============================================================================
 void InitialStroke(uint8_t _channel)
 { // MIT licensed by Albert Messmer 2025
-  uint8_t bitmask;
   SetAC();
   _workingAC = true;
-  ADMUX = _channel & 0x07; // MUX2 bis MUX0 Bits im ADMUX Register
-  bitmask = 0x00;
-  bitSet(bitmask, (_channel & 0x07)); // create a bitmask for PORTC
-  /******** start measuring sequence ********/
-  /* initial pull down pulse */
+  ADMUX = _channel & 0x07;
+  
+  // read ports from table
+  volatile uint8_t *port = (volatile uint8_t *)pgm_read_ptr(&channels[_channel].port);
+  volatile uint8_t *ddr  = (volatile uint8_t *)pgm_read_ptr(&channels[_channel].ddr);
+  uint8_t bitmask = pgm_read_byte(&channels[_channel].bitmask);
+  
+  //cli() only for time critical part
   cli();
-  PORTC &= ~bitmask; // sets PC0...7, i.e. pin 14... to LOW
-  DDRC |= bitmask;   // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull down)
+  
+  //******** start measuring sequence ********/
+  /* initial pull down pulse */
+  *port &= ~bitmask; // LOW
+  *ddr |= bitmask;   // Output
+  TWENTY_TIMES_NOP;     // 1.25 uS pulse duration
 
-  TEN_TIMES_NOP;
-  TEN_TIMES_NOP;    // 1.25 uS pulse duration
-  DDRC &= ~bitmask; // tristate                                                                                                             // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
-  TEN_TIMES_NOP;    // 0.625 uS pause
+  *ddr &= ~bitmask;  // Input
+  FIVE_TIMES_NOP;     // 0.313 uS pause
+
   /* pull up pulse */
-  PORTC |= bitmask; // sets PC0...7, i.e. pin 14... to HIGH
-  DDRC |= bitmask;  // sets PC0...7 (ADC0...7), i.e. pin 14... as output (i.e. pull up)
-  TEN_TIMES_NOP;
-  TEN_TIMES_NOP;    // 1.25 uS counter pulse duration
-  DDRC &= ~bitmask; // sets PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)                                                                                                               // sets  PC0...7 (ADC0...7), i.e. pin 14... as input (i.e. tri-state)
+  *port |= bitmask;  // HIGH
+  *ddr |= bitmask;   // Output
+
+  TWENTY_TIMES_NOP;     // 1.25 uS counter pulse duration
+
+  *ddr &= ~bitmask;  // Input Tristate
   _comp_count = 0;
+  
   sei();
 
   /* end initial stroke pulse */
-  bitSet(ADCSRB, ACME); // AC on
-  bitSet(ACSR, ACIE);   // Interrupt enabled
-  bitSet(ACSR, ACI);    // delete possible comparator interrupt flag
+  ADCSRB |= (1 << ACME);           // AC on
+  ACSR |= (1 << ACIE) | (1 << ACI); // Interrupt + Flag löschen
 }
+//===============================================================================
 //===============================================================================
 void StoreChannel(uint8_t _channel)
 {

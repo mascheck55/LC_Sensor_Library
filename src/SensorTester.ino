@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "LC_Sensor.h"
-#define Sensors 6
+#define Sensors 7
 #define FirstSensor 0 //A0
 #define Threshold 36
 #define Repeats 5
@@ -17,7 +17,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  digitalWrite(LED_BUILTIN, mysensor.activ(5));
+  digitalWrite(LED_BUILTIN, mysensor.activ(6));
   delay(20);
 }
 
