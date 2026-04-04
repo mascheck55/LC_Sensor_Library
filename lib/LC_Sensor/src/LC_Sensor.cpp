@@ -63,8 +63,8 @@ const ChannelConfig channels[] PROGMEM = {
     {&PORTC, &DDRC, (1 << 3)}, // Channel 3 = A3 = PC3
     {&PORTC, &DDRC, (1 << 4)}, // Channel 4 = A4 = PC4
     {&PORTC, &DDRC, (1 << 5)}, // Channel 5 = A5 = PC5
-    {&PORTD, &DDRD, (1 << 3)}, // Channel 6 = A6 = PD4
-    {&PORTD, &DDRD, (1 << 4)}, // Channel 7 = A7 = PD5
+    {&PORTD, &DDRD, (1 << 3)}, // Channel 6 = A6 = PD4 make stroke with PD4
+    {&PORTD, &DDRD, (1 << 2)}, // Channel 7 = A7 = PD3 make stroke with PD3
 };
 //==============================================================================================
 //==============================================================================================
